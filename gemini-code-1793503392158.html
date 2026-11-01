@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Método Érico Vinícius | Alta Performance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        mevDark: '#0a0a0a',
+                        mevCard: '#141414',
+                        mevBorder: '#262626',
+                        mevOrange: '#ff6600',
+                        mevSilver: '#c0c0c0',
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #0a0a0a; color: #f5f5f5; font-family: system-ui, -apple-system, sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #141414; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <header class="bg-mevCard border-b border-mevBorder py-4 px-6 sticky top-0 z-50 shadow-lg">
+        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-black border border-mevOrange/50 flex items-center justify-center p-1 shadow-inner overflow-hidden">
+                    <div class="w-full h-full bg-zinc-900 rounded-lg flex items-center justify-center text-mevOrange font-black text-xs">EV</div>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black tracking-wider text-white flex items-center gap-2">
+                        ÉRICO <span class="text-mevOrange">VINICIUS</span>
+                    </h1>
+                    <p class="text-xs text-mevSilver tracking-widest font-semibold uppercase">Método de Alta Performance Presencial</p>
+                </div>
+            </div>
+            <div id="header-nav-status" class="flex items-center gap-3"></div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-4xl w-full mx-auto p-4 sm:p-6" id="app-main-container">
+    </main>
+
+    <footer class="bg-mevCard border-t border-mevBorder py-4 text-center text-xs text-zinc-500">
+        &copy; 2026 Método Érico Vinícius (MEV) • Todos os direitos reservados.
+    </footer>
+
+    <script>
+        const COACH_PIN = '1234';
+        
+        // --- CONFIGURAÇÃO DA NUVEM (SUPABASE) ---
+        // ATENÇÃO: Cole a sua Project URL real do Supabase abaixo entre as aspas:
+        const SUPABASE_URL = 'https://SEU_PROJETO_AQUI.supabase.co'; 
+        const SUPABASE_KEY = 'sb_publishable_G5AfREIseR3eTGHpGAOVmg_h8AFzgBZ';
+
+        let supabaseClient = null;
+
+        function initSupabase() {
+            if (SUPABASE_URL && SUPABASE_URL !== 'https://SEU_PROJETO_AQUI.supabase.co' && window.supabase) {
+                try {
+                    if (!supabaseClient) {
+                        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                    }
+                } catch (e) { supabaseClient = null; }
+            }
+        }
+
+        async function getAlunos() {
+            initSupabase();
+            if (!supabaseClient) {
+                const data = localStorage.getItem('mev_alunos_v14');
+                return data ? JSON.parse(data) : [
+                    { id: 1, nome: "Ana Paula", senha: "anapaula1234", horario_aula: "08:00", local_aula: "XMOVE", dia_vencimento: 10, status_mensalidade: "Pago", status_presenca: "Pendente" }
+                ];
+            }
+            const { data, error } = await supabaseClient.from('alunos').select('*');
+            if (error || !data) return [];
+            return data;
+        }
+
+        async function saveAlunoCloudOrLocal(aluno) {
+            initSupabase();
+            if (supabaseClient) {
+                await supabaseClient.from('alunos').insert([aluno]);
+            } else {
+                let alunos = JSON.parse(localStorage.getItem('mev_alunos_v14')) || [];
+                alunos.push(aluno);
+                localStorage.setItem('mev_alunos_v14', JSON.stringify(alunos));
+            }
+        }
+
+        async function deleteAlunoCloudOrLocal(id) {
+            initSupabase();
+            if (supabaseClient) {
+                await supabaseClient.from('alunos').delete().eq('id', id);
+            } else {
+                let alunos = JSON.parse(localStorage.getItem('mev_alunos_v14')) || [];
+                alunos = alunos.filter(a => String(a.id) !== String(id));
+                localStorage.setItem('mev_alunos_v14', JSON.stringify(alunos));
+            }
+        }
+
+        async function toggleMensalidadeCloudOrLocal(id, novoStatus) {
+            initSupabase();
+            if (supabaseClient) {
+                await supabaseClient.from('alunos').update({ status_mensalidade: novoStatus }).eq('id', id);
+            } else {
+                let alunos = JSON.parse(localStorage.getItem('mev_alunos_v14')) || [];
+                let a = alunos.find(item => String(item.id) === String(id));
+                if (a) { a.status_mensalidade = novoStatus; localStorage.setItem('mev_alunos_v14', JSON.stringify(alunos)); }
+            }
+        }
+
+        async function getTreinosAlunos(alunoId) {
+            initSupabase();
+            if (!supabaseClient) {
+                let treinosObj = JSON.parse(localStorage.getItem('mev_treinos_v14')) || {
+                    1: [
+                        { id: 101, nome: "Treino 1: Força Base", exercicios: ["Agachamento - 4x8", "Supino - 4x8"] },
+                        { id: 102, nome: "Treino 2: Potência & Core", exercicios: ["Levantamento Terra - 3x5", "Kettlebell Swing - 3x15"] },
+                        { id: 103, nome: "Treino 3: Mobilidade & Acessório", exercicios: ["Turkish Get Up - 3x3", "Goblet Squat - 3x12"] }
+                    ]
+                };
+                return treinosObj[alunoId] || [
+                    { id: Date.now(), nome: "Treino 1", exercicios: ["Aquecimento - 3x10"] }
+                ];
+            }
+            const { data, error } = await supabaseClient.from('treinos_aluno').select('*').eq('aluno_id', alunoId);
+            if (error || !data) return [];
+            return data;
+        }
+
+        async function getHistorico() {
+            initSupabase();
+            if (!supabaseClient) {
+                return JSON.parse(localStorage.getItem('mev_hist_v14')) || [];
+            }
+            const { data, error } = await supabaseClient.from('historico').select('*').order('id', { ascending: false });
+            if (error || !data) return [];
+            return data;
+        }
+
+        async function calcularRanking() {
+            const alunos = await getAlunos();
+            const historico = await getHistorico();
+            
+            return alunos.map(aluno => {
+                const treinosAluno = historico.filter(h => String(h.aluno_id) === String(aluno.id));
+                const totalTreinos = treinosAluno.length;
+                let pontos = totalTreinos * 50;
+                if (aluno.status_mensalidade === 'Pago') pontos += 100;
+                
+                return {
+                    id: aluno.id,
+                    nome: aluno.nome,
+                    totalTreinos,
+                    pontos,
+                    status_mensalidade: aluno.status_mensalidade
+                };
+            }).sort((a, b) => b.pontos - a.pontos);
+        }
+
+        let session = { view: 'home', alunoLogado: null, treinoSelecionado: null, checkinData: {}, startTime: null };
+
+        async function render() {
+            initSupabase();
+            const container = document.getElementById('app-main-container');
+            const navStatus = document.getElementById('header-nav-status');
+            container.innerHTML = '';
+            navStatus.innerHTML = '';
+
+            if (['painel_aluno', 'checkin', 'treino_ativo', 'pse', 'bloqueado'].includes(session.view)) {
+                if (session.view !== 'bloqueado') {
+                    navStatus.innerHTML = `
+                        <div class="text-right">
+                            <span class="text-xs text-mevSilver">Aluno:</span>
+                            <p class="text-sm font-bold text-white">${session.alunoLogado.nome}</p>
+                        </div>
+                        <button onclick="logoutAluno()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-xs font-semibold border border-mevBorder transition">
+                            <i class="fa-solid fa-right-from-bracket mr-1"></i> Sair
+                        </button>
+                    `;
+                }
+            } else if (session.view === 'painel_coach') {
+                navStatus.innerHTML = `
+                    <span class="bg-mevOrange/20 text-mevOrange border border-mevOrange/30 text-xs px-3 py-1 rounded-full font-bold">Modo Coach Ativo</span>
+                    <button onclick="goHome()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg text-xs font-semibold border border-mevBorder transition">
+                        <i class="fa-solid fa-house mr-1"></i> Início
+                    </button>
+                `;
+            } else {
+                navStatus.innerHTML = `
+                    <button onclick="openCoachLogin()" class="bg-zinc-900 hover:bg-zinc-800 text-mevOrange border border-mevOrange/40 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-shield"></i> Painel Coach
+                    </button>
+                `;
+            }
+
+            switch (session.view) {
+                case 'home': await renderHome(container); break;
+                case 'login_aluno': await renderLoginAluno(container); break;
+                case 'bloqueado': renderBloqueado(container); break;
+                case 'painel_aluno': await renderPainelAluno(container); break;
+                case 'checkin': renderCheckin(container); break;
+                case 'treino_ativo': renderTreinoAtivo(container); break;
+                case 'pse': renderPse(container); break;
+                case 'painel_coach': await renderPainelCoach(container); break;
+                default: await renderHome(container);
+            }
+        }
+
+        async function renderHome(container) {
+            container.innerHTML = `
+                <div class="max-w-md mx-auto mt-10 bg-mevCard border border-mevBorder rounded-2xl p-6 sm:p-8 shadow-2xl text-center">
+                    <div class="w-20 h-20 bg-black border border-mevOrange/40 rounded-2xl flex items-center justify-center mx-auto mb-6 p-2 shadow-lg">
+                        <div class="w-full h-full bg-zinc-900 rounded-xl flex items-center justify-center text-mevOrange font-black text-xl">MEV</div>
+                    </div>
+                    <h2 class="text-2xl font-black text-white mb-2">ÁREA DO ALUNO</h2>
+                    <p class="text-zinc-400 text-sm mb-8">Insira sua senha individual fornecida pelo Coach Érico para aceder aos seus treinos.</p>
+                    
+                    <button onclick="goToLoginAluno()" class="w-full bg-mevOrange hover:bg-orange-600 text-white font-bold py-3.5 px-6 rounded-xl transition duration-200 shadow-lg shadow-orange-600/20 flex items-center justify-center gap-2 mb-4">
+                        <i class="fa-solid fa-right-to-bracket"></i> Aceder com Senha
+                    </button>
+
+                    <div class="border-t border-mevBorder pt-6 mt-6">
+                        <button onclick="openCoachLogin()" class="text-xs text-zinc-400 hover:text-mevOrange transition font-medium flex items-center justify-center gap-1.5 mx-auto">
+                            <i class="fa-solid fa-lock"></i> É o Professor Érico? Aceder ao Painel Administrativo
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function goToLoginAluno() { session.view = 'login_aluno'; render(); }
+
+        async function renderLoginAluno(container) {
+            container.innerHTML = `
+                <div class="max-w-md mx-auto mt-10 bg-mevCard border border-mevBorder rounded-2xl p-6 sm:p-8 shadow-2xl">
+                    <button onclick="goHome()" class="text-xs text-zinc-400 hover:text-white mb-6 flex items-center gap-1">
+                        <i class="fa-solid fa-arrow-left"></i> Voltar
+                    </button>
+                    <h2 class="text-xl font-bold text-white mb-1"><i class="fa-solid fa-user-lock text-mevOrange mr-2"></i>Login do Aluno</h2>
+                    <p class="text-xs text-zinc-400 mb-6">Digite sua senha individual fornecida pelo Coach.</p>
+                    
+                    <div id="login-error" class="hidden mb-4 p-3 bg-red-950/50 border border-red-800 text-red-300 text-xs rounded-xl"></div>
+
+                    <form onsubmit="handleLoginAlunoSubmit(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-zinc-300 mb-1">Senha de Acesso Individual</label>
+                            <input type="password" id="aluno-senha-input" required placeholder="Ex: anapaula1234" class="w-full bg-zinc-900 border border-mevBorder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-mevOrange">
+                        </div>
+                        <button type="submit" class="w-full bg-mevOrange hover:bg-orange-600 text-white font-bold py-3.5 px-6 rounded-xl transition shadow-lg shadow-orange-600/20">
+                            Entrar no Sistema
+                        </button>
+                    </form>
+                </div>
+            `;
+        }
+
+        async function handleLoginAlunoSubmit(e) {
+            e.preventDefault();
+            const senha = document.getElementById('aluno-senha-input').value.trim();
+            const alunos = await getAlunos();
+            const alunoEncontrado = alunos.find(a => a.senha.toLowerCase() === senha.toLowerCase());
+
+            if (alunoEncontrado) {
+                session.alunoLogado = alunoEncontrado;
+
+                const diaHoje = new Date().getDate();
+                const venc = alunoEncontrado.dia_vencimento || 10;
+                const statusPag = alunoEncontrado.status_mensalidade || 'Pago';
+
+                if (diaHoje > venc && statusPag !== 'Pago') {
+                    session.view = 'bloqueado';
+                } else {
+                    session.view = 'painel_aluno';
+                }
+                render();
+            } else {
+                const errDiv = document.getElementById('login-error');
+                errDiv.textContent = "Senha incorreta ou aluno não cadastrado. Consulte o Coach Érico.";
+                errDiv.classList.remove('hidden');
+            }
+        }
+
+        function renderBloqueado(container) {
+            container.innerHTML = `
+                <div class="max-w-md mx-auto mt-10 bg-mevCard border border-red-900/60 rounded-2xl p-6 sm:p-8 shadow-2xl text-center space-y-6">
+                    <div class="w-20 h-20 bg-red-950/60 border border-red-600 rounded-2xl flex items-center justify-center mx-auto text-red-500 text-3xl">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <h2 class="text-2xl font-black text-white">Mensalidade Vencida</h2>
+                    <p class="text-zinc-300 text-xs leading-relaxed">
+                        O seu acesso ao aplicativo encontra-se temporariamente suspenso devido a pendência na mensalidade com o Coach Érico.
+                    </p>
+                    <div class="bg-zinc-900 p-4 rounded-xl border border-mevBorder text-xs text-zinc-400">
+                        Por favor, entre em contacto com o Coach Érico para regularizar o pagamento.
+                    </div>
+                    <button onclick="goHome()" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-xl transition text-xs">
+                        Voltar ao Início
+                    </button>
+                </div>
+            `;
+        }
+
+        function logoutAluno() { session.alunoLogado = null; session.view = 'home'; render(); }
+
+        async function renderPainelAluno(container) {
+            const alunos = await getAlunos();
+            session.alunoLogado = alunos.find(a => String(a.id) === String(session.alunoLogado.id)) || session.alunoLogado;
+
+            const treinosAluno = await getTreinosAlunos(session.alunoLogado.id);
+            const rankingGeral = await calcularRanking();
+            const meuRanking = rankingGeral.find(r => String(r.id) === String(session.alunoLogado.id)) || { pontos: 0, totalTreinos: 0 };
+
+            const diaHoje = new Date().getDate();
+            const venc = session.alunoLogado.dia_vencimento || 10;
+            let avisoCobrancaHtml = '';
+
+            if ((venc - diaHoje === 1 || diaHoje === venc) && session.alunoLogado.status_mensalidade !== 'Pago') {
+                avisoCobrancaHtml = `
+                    <div class="bg-amber-950/40 border border-amber-500/60 rounded-2xl p-5 mb-6 shadow-xl">
+                        <div class="flex items-center gap-3">
+                            <i class="fa-solid fa-file-invoice-dollar text-amber-400 text-2xl"></i>
+                            <div>
+                                <h3 class="text-sm font-bold text-white">Aviso de Mensalidade ${diaHoje === venc ? 'Vence Hoje!' : 'Vence Amanhã!'}</h3>
+                                <p class="text-xs text-amber-200 mt-0.5">Sua mensalidade com o Coach Érico vence no dia ${venc}.</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            let alertaConfirmacaoHtml = '';
+            if (session.alunoLogado.horario_aula) {
+                const agora = new Date();
+                const [hAula, mAula] = session.alunoLogado.horario_aula.split(':').map(Number);
+                const dataAula = new Date();
+                dataAula.setHours(hAula, mAula, 0, 0);
+                const diffMinutos = (dataAula - agora) / (1000 * 60);
+
+                if (diffMinutos <= 60 && diffMinutos >= -30) {
+                    alertaConfirmacaoHtml = `
+                        <div class="bg-mevCard border border-mevOrange/60 rounded-2xl p-5 mb-6 shadow-xl">
+                            <div class="flex items-center gap-3 mb-2">
+                                <i class="fa-solid fa-clock-rotate-left text-mevOrange text-xl"></i>
+                                <div>
+                                    <h3 class="text-sm font-bold text-white">Confirmação de Aula Presencial</h3>
+                                    <p class="text-xs text-zinc-300">Sua aula está marcada para as <strong>${session.alunoLogado.horario_aula}</strong> em <strong>${session.alunoLogado.local_aula || 'XMOVE'}</strong>.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between mt-4 pt-3 border-t border-zinc-800">
+                                <span class="text-xs text-zinc-400">Status: <strong class="text-mevOrange">${session.alunoLogado.status_presenca || 'Pendente'}</strong></span>
+                                <div class="flex gap-2">
+                                    <button onclick="responderPresenca('Confirmado')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition">Vou Treinar</button>
+                                    <button onclick="responderPresenca('Não Irei')" class="bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition">Não Vou</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <div class="bg-gradient-to-r from-mevCard to-zinc-900 border border-mevBorder rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <span class="text-xs font-bold text-mevOrange uppercase tracking-wider">Painel Oficial do Aluno</span>
+                            <h2 class="text-2xl font-black text-white mt-1">Bem-vindo(a), ${session.alunoLogado.nome}!</h2>
+                            <p class="text-sm text-zinc-400 mt-1">Horário: <strong class="text-white">${session.alunoLogado.horario_aula || '08:00'}</strong> | Vencimento Dia: <strong class="text-white">${session.alunoLogado.dia_vencimento || 10}</strong></p>
+                        </div>
+                        <div class="bg-black/40 border border-mevOrange/40 px-4 py-3 rounded-xl text-center">
+                            <span class="text-xs text-zinc-400 block">🏆 Seu Score MEV</span>
+                            <span class="text-lg font-black text-mevOrange">${meuRanking.pontos} Pts</span>
+                            <span class="text-[10px] text-zinc-500 block">(${meuRanking.totalTreinos} treinos feitos)</span>
+                        </div>
+                    </div>
+
+                    ${avisoCobrancaHtml}
+                    ${alertaConfirmacaoHtml}
+
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-mevOrange"></i> Ciclo de Treinos (Sequência do Plano)
+                    </h3>
+                    <p class="text-xs text-zinc-400">Escolha a ficha correspondente à sessão de hoje. Após concluir o treino e enviar o relatório, o ciclo mantém-se ativo para a próxima sessão.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${treinosAluno.length === 0 ? '<p class="text-xs text-zinc-500">Nenhum treino cadastrado pelo Coach ainda.</p>' : treinosAluno.map((t, idx) => `
+                            <div class="bg-mevCard border border-mevBorder rounded-xl p-5 hover:border-mevOrange/50 transition flex flex-col justify-between">
+                                <div>
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="bg-zinc-800 text-mevOrange text-xs font-bold px-2.5 py-1 rounded-md border border-mevBorder">Ficha / Bloco ${idx + 1}</span>
+                                    </div>
+                                    <h4 class="text-base font-bold text-white mb-2">${t.nome}</h4>
+                                    <ul class="text-xs text-zinc-400 space-y-1 mb-4">
+                                        ${(t.exercicios || []).map(ex => `<li>• ${ex}</li>`).join('')}
+                                    </ul>
+                                </div>
+                                <button onclick="iniciarCheckin('${t.id}')" class="w-full bg-mevOrange hover:bg-orange-600 text-white font-bold py-2.5 px-4 rounded-lg transition text-sm flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-play"></i> Iniciar Sessão (${t.nome})
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function responderPresenca(status) {
+            initSupabase();
+            if (supabaseClient) {
+                await supabaseClient.from('alunos').update({ status_presenca: status }).eq('id', session.alunoLogado.id);
+            }
+            session.alunoLogado.status_presenca = status;
+            alert(`Presença atualizada para: ${status}`);
+            render();
+        }
+
+        async function iniciarCheckin(treinoId) {
+            const treinosAluno = await getTreinosAlunos(session.alunoLogado.id);
+            session.treinoSelecionado = treinosAluno.find(t => String(t.id) === String(treinoId)) || { id: treinoId, nome: "Treino Personalizado", exercicios: [] };
+            session.checkinData = {};
+            session.view = 'checkin';
+            render();
+        }
+
+        function renderCheckin(container) {
+            container.innerHTML = `
+                <div class="max-w-2xl mx-auto bg-mevCard border border-mevBorder rounded-2xl p-6 sm:p-8 shadow-xl">
+                    <button onclick="session.view='painel_aluno'; render();" class="text-xs text-zinc-400 hover:text-white mb-4 flex items-center gap-1">
+                        <i class="fa-solid fa-arrow-left"></i> Voltar aos Treinos
+                    </button>
+                    
+                    <h2 class="text-xl font-black text-white mb-1"><i class="fa-solid fa-clipboard-question text-mevOrange mr-2"></i>Check-in Pré-Treino MEV</h2>
+                    <p class="text-xs text-zinc-400 mb-6">Avaliação rápida de prontidão para a sessão atual (${session.treinoSelecionado.nome}).</p>
+
+                    <form onsubmit="processarCheckinSubmit(event)" class="space-y-6">
+                        <div class="bg-zinc-900/60 p-4 rounded-xl border border-mevBorder">
+                            <label class="block text-sm font-bold text-white mb-1">1. Qualidade do Sono</label>
+                            <select id="chk-sono" required class="w-full bg-zinc-900 border border-mevBorder rounded-lg px-3 py-2.5 text-white text-xs">
+                                <option value="" disabled selected>Selecione...</option>
+                                <option value="1">Menos de 6h ou sono picado (1 Ponto)</option>
+                                <option value="2">6h a 7h - Dormiu razoavelmente (2 Pontos)</option>
+                                <option value="3">Mais de 7h e sono reparador (3 Pontos)</option>
+                            </select>
+                        </div>
+
+                        <div class="bg-zinc-900/60 p-4 rounded-xl border border-mevBorder">
+                            <label class="block text-sm font-bold text-white mb-1">2. Disposição e Energia Psicológica (0 a 10)</label>
+                            <select id="chk-energia" required class="w-full bg-zinc-900 border border-mevBorder rounded-lg px-3 py-2.5 text-white text-xs">
+                                <option value="" disabled selected>Selecione...</option>
+                                <option value="1">Muito cansado / Fadiga acumulada (1 Ponto)</option>
+                                <option value="2">Disposição normal / Neutro (2 Pontos)</option>
+                                <option value="3">Super motivado / Alta energia (3 Pontos)</option>
+                            </select>
+                        </div>
+
+                        <div class="bg-zinc-900/60 p-4 rounded-xl border border-mevBorder">
+                            <label class="block text-sm font-bold text-white mb-1">3. Nível de Dor e Desconforto</label>
+                            <select id="chk-dores" required class="w-full bg-zinc-900 border border-mevBorder rounded-lg px-3 py-2.5 text-white text-xs">
+                                <option value="" disabled selected>Selecione...</option>
+                                <option value="1">Dor articular ou forte incômodo (1 Ponto)</option>
+                                <option value="2">Dor muscular leve (tardia) (2 Pontos)</option>
+                                <option value="3">Sem dores / 100% recuperado (3 Pontos)</option>
+                            </select>
+                        </div>
+
+                        <div class="bg-zinc-900/60 p-4 rounded-xl border border-mevBorder">
+                            <label class="block text-sm font-bold text-white mb-1">4. Nível de Cansaço e Estresse Diário</label>
+                            <select id="chk-estresse" required class="w-full bg-zinc-900 border border-mevBorder rounded-lg px-3 py-2.5 text-white text-xs">
+                                <option value="1">Dia extremamente exaustivo / Muito estressado</option>
+                                <option value="2" selected>Dia normal / Rotina padrão</option>
+                                <option value="3">Dia tranquilo / Descansado</option>
+                            </select>
+                        </div>
+
+                        <div class="bg-zinc-900/60 p-4 rounded-xl border border-mevBorder">
+                            <label class="block text-sm font-bold text-white mb-1">5. Alimentação e Hidratação Recentes</label>
+                            <select id="chk-hidratacao" required class="w-full bg-zinc-900 border border-mevBorder rounded-lg px-3 py-2.5 text-white text-xs">
+                                <option value="1">Não consegui comer/beber direito</option>
+                                <option value="2" selected>Parcialmente / Alimentação razoável</option>
+                                <option value="3">Muito bem hidratado e alimentado</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="w-full bg-mevOrange hover:bg-orange-600 text-white font-bold py-3.5 px-6 rounded-xl transition shadow-lg shadow-orange-600/20">
+                            Calcular Score e Iniciar Treino
+                        </button>
+                    </form>
+                </div>
+            `;
+        }
+
+        function processarCheckinSubmit(e) {
+            e.preventDefault();
+            const sono = parseInt(document.getElementById('chk-sono').value);
+            const energia = parseInt(document.getElementById('chk-energia').value);
+            const dores = parseInt(document.getElementById('chk-dores').value);
+            const scoreTotal = sono + energia + dores;
+
+            let recomendacao = scoreTotal <= 5 ? "Treino Regenerativo / Mobilidade" : scoreTotal <= 7 ? "Treino Moderado (Ajuste inteligente de cargas)" : "Treino Intenso (Foco total em performance)";
+            let corBadge = scoreTotal <= 5 ? "bg-blue-900/40 text-blue-400 border-blue-700" : scoreTotal <= 7 ? "bg-amber-900/40 text-amber-400 border-amber-700" : "bg-emerald-900/40 text-emerald-400 border-emerald-700";
+
+            session.checkinData = { dataStr: new Date().toLocaleString('pt-PT'), sono, energia, dores, scoreTotal, recomendacao, corBadge };
+            session.startTime = new Date();
+            session.view = 'treino_ativo';
+            render();
+        }
+
+        function renderTreinoAtivo(container) {
+            const t = session.treinoSelecionado;
+            const chk = session.checkinData;
+            container.innerHTML = `
+                <div class="max-w-2xl mx-auto space-y-6">
+                    <div class="bg-mevCard border border-mevBorder rounded-2xl p-6 shadow-xl">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs uppercase font-bold text-zinc-400">Score de Prontidão: <strong class="text-white text-sm">${chk.scoreTotal} Pontos</strong></span>
+                            <span class="text-xs px-3 py-1 rounded-full font-bold border ${chk.corBadge}">${chk.scoreTotal <= 5 ? 'Regenerativo' : chk.scoreTotal <= 7 ? 'Moderado' : 'Intenso'}</span>
+                        </div>
+                        <div class="bg-zinc-900 p-3.5 rounded-xl border border-mevBorder mt-3">
+                            <p class="text-xs font-semibold text-mevOrange mb-1"><i class="fa-solid fa-stethoscope mr-1"></i> Orientação:</p>
+                            <p class="text-xs text-zinc-300">${chk.recomendacao}</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-mevCard border border-mevBorder rounded-2xl p-6 shadow-xl">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-xl font-black text-white">${t.nome}</h2>
+                            <div class="text-xs font-mono bg-zinc-900 px-3 py-1.5 rounded-lg border border-mevBorder text-mevOrange" id="live-timer">00:00</div>
+                        </div>
+
+                        <div class="space-y-3 mb-8">
+                            ${(t.exercicios || []).map((ex, index) => `
+                                <div class="bg-zinc-900/80 border border-mevBorder p-4 rounded-xl flex items-center justify-between">
+                                    <span class="text-xs font-bold text-zinc-300">${index + 1}. ${ex}</span>
+                                    <span class="text-xs text-mevOrange font-semibold"><i class="fa-solid fa-check-circle mr-1"></i> Prescrito</span>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <button onclick="encerrarSessaoTreino()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-6 rounded-xl transition shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-flag-checkered"></i> Encerrar Sessão e Enviar Relatório
+                        </button>
+                    </div>
+                </div>
+            `;
+            startTimerDisplay();
+        }
+
+        let timerInterval = null;
+        function startTimerDisplay() {
+            if (timerInterval) clearInterval(timerInterval);
+            const startTime = session.startTime;
+            timerInterval = setInterval(() => {
+                const now = new Date();
+                const diffSec = Math.floor((now - startTime) / 1000);
+                const min = String(Math.floor(diffSec / 60)).padStart(2, '0');
+                const sec = String(diffSec % 60).padStart(2, '0');
+                const el = document.getElementById('live-timer');
+                if (el) el.textContent = `${min}:${sec}`;
+            }, 1000);
+        }
+
+        function encerrarSessaoTreino() {
+            if (timerInterval) clearInterval(timerInterval);
+            session.view = 'pse';
+            render();
+        }
+
+        function renderPse(container) {
+            container.innerHTML = `
+                <div class="max-w-md mx-auto bg-mevCard border border-mevBorder rounded-2xl p-6 sm:p-8 shadow-xl">
+                    <h2 class="text-xl font-black text-white mb-1"><i class="fa-solid fa-chart-line text-mevOrange mr-2"></i>Feedback Pós-Treino (PSE)</h2>
+                    <p class="text-xs text-zinc-400 mb-6">Avalie o esforço geral da sessão (${session.treinoSelecionado.nome}).</p>
+
+                    <form onsubmit="salvarSessaoFinal(event)" class="space-y-6">
+                        <div class="bg-zinc-900/60 p-4 rounded-xl border border-mevBorder">
+                            <label class="block text-sm font-bold text-white mb-1">Escala de Borg (0 a 10)</label>
+                            <input type="number" id="pse-nota" min="0" max="10" required placeholder="Ex: 8" class="w-full bg-zinc-900 border border-mevBorder rounded-xl px-4 py-3 text-white text-base font-bold focus:outline-none focus:border-mevOrange text-center">
+                        </div>
+
+                        <button type="submit" class="w-full bg-mevOrange hover:bg-orange-600 text-white font-bold py-3.5 px-6 rounded-xl transition shadow-lg shadow-orange-600/20">
+                            Salvar Relatório e Concluir Ciclo
+                        </button>
+                    </form>
+                </div>
+            `;
+        }
+
+        async function salvarSessaoFinal(e) {
+            e.preventDefault();
+            const pseNota = parseInt(document.getElementById('pse-nota').value);
+            let interpretacaoPse = pseNota >= 9 ? "Treino muito exaustivo (Choque)" : pseNota >= 7 ? "Zona ideal de hipertrofia" : pseNota >= 5 ? "Treino moderado" : "Treino leve";
+
+            const registro = {
+                aluno_id: session.alunoLogado.id,
+                aluno_nome: session.alunoLogado.nome,
+                treino_nome: session.treinoSelecionado.nome,
+                data_str: session.checkinData.dataStr,
+                checkin: session.checkinData,
+                pse_nota: pseNota,
+                interpretacao_pse: interpretacaoPse
+            };
+
+            initSupabase();
+            if (supabaseClient) {
+                await supabaseClient.from('historico').insert([registro]);
+            } else {
+                let hist = JSON.parse(localStorage.getItem('mev_hist_v14')) || [];
+                hist.unshift(registro);
+                localStorage.setItem('mev_hist_v14', JSON.stringify(hist));
+            }
+
+            alert("Relatório guardado com sucesso! Ganhou pontos para o Ranking MEV.");
+            session.view = 'painel_aluno';
+            render();
+        }
+
+        function openCoachLogin() {
+            const pin = prompt("Digite o PIN do Coach Érico:");
+            if (pin === COACH_PIN) {
+                session.view = 'painel_coach';
+                render();
+            } else if (pin !== null) {
+                alert("PIN incorreto!");
+            }
+        }
+
+        function goHome() { session.view = 'home'; render(); }
+
+        let coachTab = 'alunos';
+        let alunoSelecionadoParaTreino = null;
+
+        async function renderPainelCoach(container) {
+            const alunos = await getAlunos();
+            const historico = await getHistorico();
+            const ranking = await calcularRanking();
+
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <div class="bg-gradient-to-r from-mevCard to-zinc-900 border border-mevBorder rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div>
+                            <span class="text-xs font-bold text-mevOrange uppercase tracking-wider">Painel Administrativo</span>
+                            <h2 class="text-2xl font-black text-white mt-1">Gestão Completa MEV</h2>
+                            <p class="text-sm text-zinc-400 mt-1">Alunos, ciclos de treinos, relatórios e ranking.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex border-b border-mevBorder gap-2 overflow-x-auto">
+                        <button onclick="setCoachTab('alunos')" class="px-4 py-2.5 text-xs font-bold border-b-2 transition whitespace-nowrap ${coachTab === 'alunos' ? 'border-mevOrange text-mevOrange' : 'border-transparent text-zinc-400 hover:text-white'}"><i class="fa-solid fa-users mr-1"></i> Alunos & Mensalidades</button>
+                        <button onclick="setCoachTab('treinos_aluno')" class="px-4 py-2.5 text-xs font-bold border-b-2 transition whitespace-nowrap ${coachTab === 'treinos_aluno' ? 'border-mevOrange text-mevOrange' : 'border-transparent text-zinc-400 hover:text-white'}"><i class="fa-solid fa-dumbbell mr-1"></i> Ciclo de Treinos</button>
+                        <button onclick="setCoachTab('ranking')" class="px-4 py-2.5 text-xs font-bold border-b-2 transition whitespace-nowrap ${coachTab === 'ranking' ? 'border-mevOrange text-mevOrange' : 'border-transparent text-zinc-400 hover:text-white'}"><i class="fa-solid fa-trophy mr-1"></i> Ranking MEV</button>
+                        <button onclick="setCoachTab('relatorios')" class="px-4 py-2.5 text-xs font-bold border-b-2 transition whitespace-nowrap ${coachTab === 'relatorios' ? 'border-mevOrange text-mevOrange' : 'border-transparent text-zinc-400 hover:text-white'}"><i class="fa-solid fa-chart-pie mr-1"></i> Relatórios</button>
+                    </div>
+
+                    <div id="coach-tab-content">
+                        ${await renderCoachTabContent(coachTab, alunos, historico, ranking)}
+                    </div>
+                </div>
+            `;
+        }
+
+        function setCoachTab(tab) { coachTab = tab; render(); }
+
+        async function renderCoachTabContent(tab, alunos, historico, ranking) {
+            if (tab === 'alunos') {
+                return `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-mevCard border border-mevBorder rounded-xl p-5 h-fit">
+                            <h3 class="text-base font-bold text-white mb-4"><i class="fa-solid fa-user-plus text-mevOrange mr-2"></i>Cadastrar Novo Aluno</h3>
+                            <form onsubmit="cadastrarAlunoSubmit(event)" class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-zinc-300 mb-1">Nome Completo</label>
+                                    <input type="text" id="novo-aluno-nome" required placeholder="Ex: Ana Paula" class="w-full bg-zinc-900 border border-mevBorder rounded-lg px-3 py-2 text-white text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-zinc-300 mb-1">Senha Individual</label>
+                                    <input type="text" id="novo-aluno-senha" required placeholder="Ex: anapaula1234" class="w-full bg-zinc-900 border border-mevBorder rounded-lg px-3 py-2 text-white text-xs">
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-zinc-300 mb-1">Horário</label>
+                                        <input type="time" id="novo-aluno-horario" required value="08:00" class="w-full bg-zinc-900 border border-mevBorder rounded-lg px-2 py-2 text-white text-xs">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-zinc-300 mb-1">Dia Vencimento</label>
+                                        <input type="number" id="novo-aluno-venc" min="1" max="31" required value="10" class="w-full bg-zinc-900 border border-mevBorder rounded-lg px-2 py-2 text-white text-xs text-center font-bold">
+                                    </div>
+                                </div>
+                                <button type="submit" class="w-full bg-mevOrange hover:bg-orange-600 text-white font-bold py-2.5 px-4 rounded-lg transition text-xs mt-2">Adicionar Aluno</button>
+                            </form>
+                        </div>
+
+                        <div class="md:col-span-2 bg-mevCard border border-mevBorder rounded-xl p-5">
+                            <h3 class="text-base font-bold text-white mb-4">Gestão de Alunos & Status de Pagamento</h3>
+                            <div class="space-y-3">
+                                ${alunos.length === 0 ? '<p class="text-xs text-zinc-500">Nenhum aluno cadastrado.</p>' : alunos.map(a => `
+                                    <div class="bg-zinc-900 border border-mevBorder p-3.5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                        <div>
+                                            <p class="text-sm font-bold text-white">${a.nome} <span class="text-xs text-zinc-400 font-normal">(Vencimento: Dia ${a.dia_vencimento || 10})</span></p>
+                                            <p class="text-xs text-zinc-400 font-mono mt-0.5">Senha: <span class="text-mevOrange">${a.senha}</span> • Mensalidade: <strong class="${a.status_mensalidade === 'Pago' ? 'text-emerald-400' : 'text-red-400'}">${a.status_mensalidade || 'Pago'}</strong></p>
+                                        </div>
+                                        <div class="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+                                            <button onclick="alternarMensalidade('${a.id}')" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-mevBorder px-2.5 py-1.5 rounded-lg text-xs font-semibold transition">
+                                                ${a.status_mensalidade === 'Pago' ? 'Marcar Pendente' : 'Marcar Pago'}
+                                            </button>
+                                            <button onclick="selecionarAlunoParaTreinos('${a.id}')" class="bg-mevOrange/20 hover:bg-mevOrange/30 text-mevOrange border border-mevOrange/40 px-3 py-1.5 rounded-lg text-xs font-bold transition">Treinos</button>
+                                            <button onclick="removerAluno('${a.id}')" class="text-red-400 hover:text-red-300 p-2 text-xs"><i class="fa-solid fa-trash"></i></button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (tab === 'treinos_aluno') {
+                if (!alunoSelecionadoParaTreino && alunos.length > 0) alunoSelecionadoParaTreino = String(alunos[0].id);
+                const alunoAtual = alunos.find(a => String(a.id) === String(alunoSelecionadoParaTreino));
+                const treinosDoAluno = alunoSelecionadoParaTreino ? (await getTreinosAlunos(alunoSelecionadoParaTreino)) : [];
+
+                return `
+                    <div class="space-y-6">
+                        <div class="bg-mevCard border border-mevBorder rounded-xl p-5">
+                            <h3 class="text-base font-bold text-white mb-3"><i class="fa-solid fa-user-gear text-mevOrange mr-2"></i>Selecionar Aluno para Gerenciar Ciclo</h3>
+                            <select onchange="mudarAlunoTreinoEdicao(this.value)" class="w-full bg-zinc-900 border border-mevBorder rounded-lg px-3 py-2 text-white text-xs">
+                                ${alunos.map(a => `<option value="${a.id}" ${String(a.id) === String(alunoSelecionadoParaTreino) ? 'selected' : ''}>${a.nome} (Venc: Dia ${a.dia_vencimento || 10})</option>`).join('')}
+                            </select>
+                        </div>
+
+                        ${alunoAtual ? `
+                            <div class="bg-mevCard border border-mevBorder rounded-xl p-5 space-y-4">
+                                <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+                                    <h4 class="text-sm font-bold text-white">Fichas de Treino de: <span class="text-mevOrange">${alunoAtual.nome}</span></h4>
+                                    <button onclick="adicionarNovoTreinoAluno('${alunoAtual.id}')" class="bg-mevOrange hover:bg-orange-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition"><i class="fa-solid fa-plus mr-1"></i> Adicionar Nova Ficha</button>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    ${treinosDoAluno.map((t, idx) => `
+                                        <div class="bg-zinc-900 border border-mevBorder p-4 rounded-xl space-y-3">
+                                            <div class="flex justify-between items-center text-xs font-bold text-mevOrange">
+                                                <span>Ficha Sequencial #${idx + 1}</span>
+                                            </div>
+                                            <input type="text" id="t-nome-${t.id}" value="${t.nome}" class="w-full bg-zinc-950 border border-mevBorder rounded-lg px-3 py-1.5 text-xs text-white font-bold">
+                                            <textarea id="t-ex-${t.id}" rows="4" class="w-full bg-zinc-950 border border-mevBorder rounded-lg p-2 text-xs text-zinc-300 font-mono">${(t.exercicios || []).join('\n')}</textarea>
+                                            <div class="flex gap-2">
+                                                <button onclick="salvarTreinoIndividual('${t.id}')" class="flex-1 bg-mevOrange hover:bg-orange-600 text-white font-bold py-2 rounded-lg text-xs transition">Salvar Ficha</button>
+                                                <button onclick="removerTreinoIndividual('${t.id}')" class="bg-red-950/60 hover:bg-red-900 text-red-300 px-3 py-2 rounded-lg text-xs transition"><i class="fa-solid fa-trash"></i></button>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : '<p class="text-xs text-zinc-500">Cadastre um aluno primeiro.</p>'}
+                    </div>
+                `;
+            } else if (tab === 'ranking') {
+                return `
+                    <div class="bg-mevCard border border-mevBorder rounded-xl p-5 space-y-4">
+                        <h3 class="text-base font-bold text-white mb-2"><i class="fa-solid fa-trophy text-mevOrange mr-2"></i>Ranking Geral MEV (Assiduidade e Pontuação)</h3>
+                        <p class="text-xs text-zinc-400">Classificação baseada no número de treinos concluídos e pontualidade da mensalidade.</p>
+                        
+                        <div class="space-y-3 mt-4">
+                            ${ranking.length === 0 ? '<p class="text-xs text-zinc-500">Nenhum dado para o ranking ainda.</p>' : ranking.map((r, index) => `
+                                <div class="bg-zinc-900 border border-mevBorder p-4 rounded-xl flex items-center justify-between">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-8 h-8 rounded-full ${index === 0 ? 'bg-amber-500 text-black font-black' : index === 1 ? 'bg-zinc-300 text-black font-black' : index === 2 ? 'bg-amber-700 text-white font-black' : 'bg-zinc-800 text-zinc-400'} flex items-center justify-center text-xs">
+                                            ${index + 1}º
+                                        </div>
+                                        <div>
+                                            <h4 class="text-sm font-bold text-white">${r.nome}</h4>
+                                            <p class="text-xs text-zinc-400">Presenças: <strong class="text-white">${r.totalTreinos} treinos</strong> • Pagamento: <span class="${r.status_mensalidade === 'Pago' ? 'text-emerald-400' : 'text-red-400'}">${r.status_mensalidade || 'Pago'}</span></p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="text-lg font-black text-mevOrange">${r.pontos}</span>
+                                        <span class="text-[10px] text-zinc-500 block uppercase">Pontos</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="bg-mevCard border border-mevBorder rounded-xl p-5 space-y-4">
+                        <h3 class="text-base font-bold text-white mb-2"><i class="fa-solid fa-chart-bar text-mevOrange mr-2"></i>Relatórios Registados</h3>
+                        <div class="space-y-3">
+                            ${historico.length === 0 ? '<p class="text-xs text-zinc-500">Nenhum relatório registado ainda.</p>' : historico.map(h => `
+                                <div class="bg-zinc-900 border border-mevBorder p-4 rounded-xl space-y-2">
+                                    <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
+                                        <span class="text-sm font-bold text-white">${h.aluno_nome} (${h.treino_nome})</span>
+                                        <span class="text-xs text-zinc-500 font-mono">${h.data_str}</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                                        <div class="bg-zinc-950 p-2 rounded border border-zinc-800"><span class="text-zinc-500 block">Score:</span><strong>${h.checkin.scoreTotal} Pts</strong></div>
+                                        <div class="bg-zinc-950 p-2 rounded border border-zinc-800"><span class="text-zinc-500 block">Orientação:</span><span class="text-mevOrange">${h.checkin.scoreTotal <= 5 ? 'Regenerativo' : h.checkin.scoreTotal <= 7 ? 'Moderado' : 'Intenso'}</span></div>
+                                        <div class="bg-zinc-950 p-2 rounded border border-zinc-800"><span class="text-zinc-500 block">PSE (Borg):</span><strong>${h.pse_nota} / 10</strong></div>
+                                        <div class="bg-zinc-950 p-2 rounded border border-zinc-800"><span class="text-zinc-500 block">Status:</span><span>${h.interpretacao_pse}</span></div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        async function alternarMensalidade(id) {
+            const alunos = await getAlunos();
+            const a = alunos.find(item => String(item.id) === String(id));
+            if (a) {
+                const novoStatus = a.status_mensalidade === 'Pago' ? 'Pendente' : 'Pago';
+                await toggleMensalidadeCloudOrLocal(id, novoStatus);
+                render();
+            }
+        }
+
+        async function cadastrarAlunoSubmit(e) {
+            e.preventDefault();
+            const nome = document.getElementById('novo-aluno-nome').value.trim();
+            const senha = document.getElementById('novo-aluno-senha').value.trim();
+            const horario_aula = document.getElementById('novo-aluno-horario').value;
+            const dia_vencimento = parseInt(document.getElementById('novo-aluno-venc').value);
+
+            const novoAluno = {
+                nome,
+                senha,
+                horario_aula,
+                local_aula: "XMOVE",
+                dia_vencimento,
+                status_mensalidade: "Pago",
+                status_presenca: "Pendente"
+            };
+
+            await saveAlunoCloudOrLocal(novoAluno);
+            alert(`Aluno ${nome} cadastrado com sucesso!`);
+            render();
+        }
+
+        async function removerAluno(id) {
+            if (confirm("Remover este aluno?")) {
+                await deleteAlunoCloudOrLocal(id);
+                render();
+            }
+        }
+
+        function selecionarAlunoParaTreinos(alunoId) { 
+            alunoSelecionadoParaTreino = String(alunoId); 
+            coachTab = 'treinos_aluno'; 
+            render(); 
+        }
+        
+        function mudarAlunoTreinoEdicao(val) { 
+            alunoSelecionadoParaTreino = String(val); 
+            render(); 
+        }
+
+        async function adicionarNovoTreinoAluno(alunoId) {
+            initSupabase();
+            if (supabaseClient) {
+                await supabaseClient.from('treinos_aluno').insert([{ aluno_id: parseInt(alunoId), nome: "Nova Ficha de Treino", exercicios: ["Exercício 1 - 3x10"] }]);
+            } else {
+                let treinosObj = JSON.parse(localStorage.getItem('mev_treinos_v14')) || {};
+                if (!treinosObj[alunoId]) treinosObj[alunoId] = [];
+                treinosObj[alunoId].push({ id: Date.now(), nome: `Treino ${treinosObj[alunoId].length + 1}`, exercicios: ["Exercício 1 - 3x10"] });
+                localStorage.setItem('mev_treinos_v14', JSON.stringify(treinosObj));
+            }
+            render();
+        }
+
+        async function salvarTreinoIndividual(treinoId) {
+            const nomeInput = document.getElementById(`t-nome-${treinoId}`).value;
+            const exArea = document.getElementById(`t-ex-${treinoId}`).value;
+            const exerciciosArr = exArea.split('\n').filter(i => i.trim() !== '');
+
+            initSupabase();
+            if (supabaseClient) {
+                await supabaseClient.from('treinos_aluno').update({ nome: nomeInput, exercicios: exerciciosArr }).eq('id', treinoId);
+            } else {
+                let treinosObj = JSON.parse(localStorage.getItem('mev_treinos_v14')) || {};
+                for (let aid in treinosObj) {
+                    let t = treinosObj[aid].find(item => String(item.id) === String(treinoId));
+                    if (t) { t.nome = nomeInput; t.exercicios = exerciciosArr; }
+                }
+                localStorage.setItem('mev_treinos_v14', JSON.stringify(treinosObj));
+            }
+            alert("Ficha de treino atualizada com sucesso!");
+            render();
+        }
+
+        async function removerTreinoIndividual(treinoId) {
+            if (confirm("Remover esta ficha de treino?")) {
+                initSupabase();
+                if (supabaseClient) {
+                    await supabaseClient.from('treinos_aluno').delete().eq('id', treinoId);
+                } else {
+                    let treinosObj = JSON.parse(localStorage.getItem('mev_treinos_v14')) || {};
+                    for (let aid in treinosObj) {
+                        treinosObj[aid] = treinosObj[aid].filter(t => String(t.id) !== String(treinoId));
+                    }
+                    localStorage.setItem('mev_treinos_v14', JSON.stringify(treinosObj));
+                }
+                render();
+            }
+        }
+
+        window.onload = () => { render(); };
+    </script>
+</body>
+</html>
